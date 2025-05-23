@@ -23,7 +23,7 @@
 static void encode_simple_byte(const struct can_format_t *fmt,
                                struct can_frame_t *frame, uint32_t v)
 {
-    uint8_t mask = ((1 << fmt->bits) - 1) << fmt->start_bit;
+    uint8_t mask = ((1u << fmt->bits) - 1u) << fmt->start_bit;
     uint8_t *byte = frame->bytes + fmt->start_byte;
     *byte = (*byte & ~mask) | (uint8_t)(v << fmt->start_bit);
 }
@@ -31,7 +31,7 @@ static void encode_simple_byte(const struct can_format_t *fmt,
 static uint32_t decode_simple_byte(const struct can_format_t *fmt,
                                    const struct can_frame_t *frame)
 {
-    uint8_t mask = ((1 << fmt->bits) - 1) << fmt->start_bit;
+    uint8_t mask = ((1u << fmt->bits) - 1u) << fmt->start_bit;
     uint8_t *byte = (uint8_t *)(frame->bytes) + fmt->start_byte;
     return (*byte & mask) >> fmt->start_bit;
 }
@@ -43,20 +43,20 @@ static void encode_multi_bytes(const struct can_format_t *fmt,
     uint8_t diff_bytes = fmt->start_byte - fmt->end_byte;
     /*! encode lsb */
     uint8_t *byte = frame->bytes + fmt->start_byte;
-    uint8_t mask = ((1 << (8 - fmt->start_bit)) - 1) << fmt->start_bit;
+    uint8_t mask = ((1u << (8u - fmt->start_bit)) - 1u) << fmt->start_bit;
 
     *byte = (*byte & ~mask) | (uint8_t)(v << fmt->start_bit);
-    bits = bits - (8 - fmt->start_bit);
+    bits = bits - (8u - fmt->start_bit);
     /*! encode msb */
     while (--diff_bytes) {
         --byte;
         *byte = v >> (fmt->bits - bits);
-        bits -= 8;
+        bits -= 8u;
     }
 
     if (bits) {
         --byte;
-        mask = (1 << bits) - 1;
+        mask = (1u << bits) - 1u;
         *byte = (*byte & ~mask) | (uint8_t)(v >> (fmt->bits - bits));
     }
 }
@@ -64,24 +64,24 @@ static void encode_multi_bytes(const struct can_format_t *fmt,
 static uint32_t decode_multi_bytes(const struct can_format_t *fmt,
                                    const struct can_frame_t *frame)
 {
-    uint8_t bits = 8 - fmt->start_bit;
+    uint8_t bits = 8u - fmt->start_bit;
     uint8_t diff_bytes = fmt->start_byte - fmt->end_byte;
 
     /*! decode lsb */
     uint8_t *byte = (uint8_t *)(frame->bytes) + fmt->start_byte;
-    uint8_t mask = ((1 << bits) - 1) << fmt->start_bit;
+    uint8_t mask = ((1u << bits) - 1u) << fmt->start_bit;
     uint32_t ret = (*byte & mask) >> fmt->start_bit;
 
     /*! decode msb */
     while (--diff_bytes) {
         --byte;
         ret |= ((uint32_t)*byte) << bits;
-        bits += 8;
+        bits += 8u;
     }
 
     if (bits < fmt->bits) {
         --byte;
-        mask = (1 << (fmt->end_bit + 1)) - 1;
+        mask = (1u << (fmt->end_bit + 1u)) - 1u;
         ret |= (uint32_t)(*byte & mask) << bits;
     }
 
