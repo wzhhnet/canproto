@@ -20,95 +20,121 @@
 
 #include "can_proto.h"
 
-static void encode_simple_byte(const struct can_format_t *fmt,
-                               struct can_frame_t *frame, uint32_t v)
+#define RET_VOID
+#define RETURN_IF_NULL(PTR, RET)                                               \
+    do {                                                                       \
+        if ((PTR) == NULL) return RET;                                         \
+    } while (0)
+
+#define RETURN_IF_TRUE(EXPR, RET)                                              \
+    do {                                                                       \
+        if (EXPR) return RET;                                                  \
+    } while (0)
+
+#define RETURN_IF_FAIL(RET)                                                    \
+    do {                                                                       \
+        if (RET) return RET;                                                   \
+    } while (0)
+
+#define DIFF_BYTES(FMT)                                                        \
+    (kCanEndian == CAN_BIG_ENDIAN ? ((FMT)->start_byte - (FMT)->end_byte)      \
+                                  : ((FMT)->end_byte - (FMT)->start_byte))
+
+#define MOVE_BYTES(FMT, BYTE_PTR)                                              \
+    do {                                                                       \
+        if (kCanEndian == CAN_LITTLE_ENDIAN)                                   \
+            ++(BYTE_PTR);                                                      \
+        else                                                                   \
+            --(BYTE_PTR);                                                      \
+    } while (0)
+
+#define CHECK_FORMAT_BYTES(FMT)                                                \
+    do {                                                                       \
+        RETURN_IF_TRUE((FMT)->start_byte >= CAN_MSG_LEN, RC_ERR_FMT_S_BYTE);   \
+        RETURN_IF_TRUE((FMT)->end_byte >= CAN_MSG_LEN, RC_ERR_FMT_E_BYTE);     \
+        if (kCanEndian == CAN_BIG_ENDIAN) {                                    \
+            RETURN_IF_TRUE((FMT)->start_byte < (FMT)->end_byte,                \
+                           RC_ERR_FMT_BYTE_SEQ);                               \
+        } else {                                                               \
+            RETURN_IF_TRUE((FMT)->start_byte > (FMT)->end_byte,                \
+                           RC_ERR_FMT_BYTE_SEQ);                               \
+        }                                                                      \
+    } while (0)
+
+#define CHECK_FORMAT_BITS(FMT)                                                 \
+    do {                                                                       \
+        RETURN_IF_TRUE((FMT)->start_bit > 7, RC_ERR_FMT_S_BIT);                \
+        RETURN_IF_TRUE((FMT)->end_bit > 7, RC_ERR_FMT_E_BIT);                  \
+        RETURN_IF_TRUE((FMT)->bits == 0 || (FMT)->bits > 32, RC_ERR_FMT_BITS); \
+        uint8_t bytes = DIFF_BYTES(FMT);                                       \
+        uint8_t bits = (bytes * 8u) - (FMT)->start_bit + (FMT)->end_bit + 1u;  \
+        RETURN_IF_TRUE((FMT)->bits != bits, RC_ERR_FMT_BITS_CALC);             \
+    } while (0)
+
+#define CHECK_FORMAT(FMT)                                                      \
+    do {                                                                       \
+        CHECK_FORMAT_BYTES(FMT);                                               \
+        CHECK_FORMAT_BITS(FMT);                                                \
+    } while (0)
+
+static uint8_t kCanEndian = CAN_BIG_ENDIAN; // default to big-endian
+
+static int check_format(const struct can_format_t *fmt)
 {
-    uint8_t mask = ((1u << fmt->bits) - 1u) << fmt->start_bit;
-    uint8_t *byte = frame->bytes + fmt->start_byte;
-    *byte = (*byte & ~mask) | (uint8_t)(v << fmt->start_bit);
+    CHECK_FORMAT(fmt);
+    return RC_SUCCESS;
 }
 
-static uint32_t decode_simple_byte(const struct can_format_t *fmt,
-                                   const struct can_frame_t *frame)
+void set_can_endian(uint8_t endian)
 {
-    uint8_t mask = ((1u << fmt->bits) - 1u) << fmt->start_bit;
-    uint8_t *byte = (uint8_t *)(frame->bytes) + fmt->start_byte;
-    return (*byte & mask) >> fmt->start_bit;
+    if (endian == CAN_BIG_ENDIAN || endian == CAN_LITTLE_ENDIAN) {
+        kCanEndian = endian;
+    }
 }
 
-static void encode_multi_bytes(const struct can_format_t *fmt,
-                               struct can_frame_t *frame, uint32_t v)
+int encode_can_data(const struct can_format_t *fmt, struct can_frame_t *frame,
+                    uint32_t v)
 {
+    RETURN_IF_NULL(fmt, RC_ERR_NULL_PTR);
+    RETURN_IF_NULL(frame, RC_ERR_NULL_PTR);
+    RETURN_IF_FAIL(check_format(fmt));
+
     uint8_t bits = fmt->bits;
-    uint8_t diff_bytes = fmt->start_byte - fmt->end_byte;
-    /*! encode lsb */
     uint8_t *byte = frame->bytes + fmt->start_byte;
-    uint8_t mask = ((1u << (8u - fmt->start_bit)) - 1u) << fmt->start_bit;
-
-    *byte = (*byte & ~mask) | (uint8_t)(v << fmt->start_bit);
-    bits = bits - (8u - fmt->start_bit);
-    /*! encode msb */
-    while (--diff_bytes) {
-        --byte;
-        *byte = v >> (fmt->bits - bits);
-        bits -= 8u;
+    uint8_t s_bit = fmt->start_bit;
+    while (bits) {
+        uint8_t mask_len = 8u - s_bit;
+        if (mask_len > bits) mask_len = bits;
+        uint8_t mask = ((1u << mask_len) - 1u) << s_bit;
+        *byte = (*byte & ~mask) | (uint8_t)((v << s_bit) & mask);
+        bits -= mask_len;
+        v >>= mask_len;
+        s_bit = 0;             // subsequent bytes start from bit 0
+        MOVE_BYTES(fmt, byte); // move to the next byte
     }
-
-    if (bits) {
-        --byte;
-        mask = (1u << bits) - 1u;
-        *byte = (*byte & ~mask) | (uint8_t)(v >> (fmt->bits - bits));
-    }
+    return RC_SUCCESS;
 }
 
-static uint32_t decode_multi_bytes(const struct can_format_t *fmt,
-                                   const struct can_frame_t *frame)
+int decode_can_data(const struct can_format_t *fmt,
+                    const struct can_frame_t *frame, uint32_t *v)
 {
-    uint8_t bits = 8u - fmt->start_bit;
-    uint8_t diff_bytes = fmt->start_byte - fmt->end_byte;
+    RETURN_IF_NULL(fmt, RC_ERR_NULL_PTR);
+    RETURN_IF_NULL(frame, RC_ERR_NULL_PTR);
+    RETURN_IF_NULL(v, RC_ERR_NULL_PTR);
+    RETURN_IF_FAIL(check_format(fmt));
 
-    /*! decode lsb */
+    uint8_t bits = 0;
     uint8_t *byte = (uint8_t *)(frame->bytes) + fmt->start_byte;
-    uint8_t mask = ((1u << bits) - 1u) << fmt->start_bit;
-    uint32_t ret = (*byte & mask) >> fmt->start_bit;
-
-    /*! decode msb */
-    while (--diff_bytes) {
-        --byte;
-        ret |= ((uint32_t)*byte) << bits;
-        bits += 8u;
+    uint8_t s_bit = fmt->start_bit;
+    *v = 0;
+    while (bits < fmt->bits) {
+        uint8_t mask_len = 8u - s_bit;
+        if (mask_len > (fmt->bits - bits)) mask_len = fmt->bits - bits;
+        uint8_t mask = ((1u << mask_len) - 1u) << s_bit;   // create mask
+        *v |= ((uint32_t)(*byte & mask) >> s_bit) << bits; // extract value
+        bits += mask_len;
+        s_bit = 0;             // subsequent bytes start from bit 0
+        MOVE_BYTES(fmt, byte); // move to the next byte
     }
-
-    if (bits < fmt->bits) {
-        --byte;
-        mask = (1u << (fmt->end_bit + 1u)) - 1u;
-        ret |= (uint32_t)(*byte & mask) << bits;
-    }
-
-    return ret;
-}
-
-void encode_can_data(const struct can_format_t *fmt, struct can_frame_t *frame,
-                     uint32_t v)
-{
-    uint8_t diff_bytes = fmt->start_byte - fmt->end_byte;
-    if (diff_bytes == 0) {
-        encode_simple_byte(fmt, frame, v);
-    } else {
-        encode_multi_bytes(fmt, frame, v);
-    }
-}
-
-uint32_t decode_can_data(const struct can_format_t *fmt,
-                         const struct can_frame_t *frame)
-{
-    uint32_t ret = 0;
-    uint8_t diff_bytes = fmt->start_byte - fmt->end_byte;
-    if (diff_bytes == 0) {
-        ret = decode_simple_byte(fmt, frame);
-    } else {
-        ret = decode_multi_bytes(fmt, frame);
-    }
-
-    return ret;
+    return RC_SUCCESS;
 }

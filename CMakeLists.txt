@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.8)
 
-project(canproto)
+project(canproto LANGUAGES C CXX)
+set(CMAKE_BUILD_TYPE "Debug")
+set(CMAKE_C_FLAGS_DEBUG "-O0 -Wall -g2 -ggdb")
 add_library(${PROJECT_NAME} STATIC can_proto.c)
-add_library(sample STATIC sample.c)
+add_library(sample STATIC motorola.c intel.c)
 target_link_libraries(sample PUBLIC canproto)
 add_executable(test test_main.cpp)
 target_link_libraries(test PUBLIC sample gtest)
