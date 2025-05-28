@@ -2,7 +2,7 @@
 
 该项目提供一个基于 Excel 的可视化 CAN 协议生成工具 —— `CanGenerator_v2.0.xlsm`，用于快速设计并自动生成 C 语言的 CAN 报文编解码代码。支持 Motorola（大端）和 Intel（小端）两种字节序格式。
 
-## � 特性
+## :star2:特性
 
 - ✅ 可视化设计 CAN 报文结构
 - ✅ 支持 Intel（Little-Endian） 和 Motorola（Big-Endian）编码方式
@@ -12,7 +12,7 @@
 
 ---
 
-## � 使用方式
+## :key:使用方式
 
 1. 打开 `CanGenerator_v2.0.xlsm` 文件（需启用宏功能）。
 2. 根据字节序选择相应的工作表：
@@ -32,8 +32,7 @@
 | `Signal`     | 信号名称，用户自定义，如 `i_signal_1`                                |
 | `Description`| 描述信息（可选）                                                      |
 
-如下是一个 `Little-Endian` 示例：
-
+如下是一个 `Little-Endian` 示例,Protocol: intel
 | Frame | Length | Bits | End Byte\:Bit | Start Byte\:Bit | Signal       | Description |
 | ----- | ------ | ---- | ------------- | --------------- | ------------ | ----------- |
 | intel | 64     | 1    | 0:0           | 0:0             | i\_signal\_1 |             |
@@ -49,7 +48,7 @@
 
 ---
 
-## � 输出示例
+## :file_folder:输出示例
 
 生成的 C 代码将包括：
 
@@ -60,27 +59,27 @@
 
 ---
 
-## � 依赖要求
+## :wrench:依赖要求
 
 - Excel 2010 及以上（启用宏）
 - Windows 系统推荐（需支持 VBA 宏）
 
 ---
 
-## �‍� 开发者说明
+## :microphone:开发者说明
 
 - `CanGenerator_v2.0.xlsm` 内部使用 VBA 脚本管理字段布局、索引自动计算和 C 代码输出。
 - 若需扩展，请参考 VBA 编辑器内的模块代码进行自定义。
 
 ---
 
-## � License
+## :scroll:License
 
 MIT License
 
 ---
 
-## � 联系方式
+## :mailbox_with_mail:联系方式
 wzhhnet@gmail.com
 
 如有问题或建议，请提交 Issue 或联系作者。
