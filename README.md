@@ -61,8 +61,8 @@
 
 ## :wrench:依赖要求
 
-- Excel 2010 及以上（启用宏）
-- Windows 系统推荐（需支持 VBA 宏）
+- Windows/Excel 2010及以上（启用宏）
+- Linux/LibreOffice Calc
 
 ---
 
